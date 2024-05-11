@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/cameraPreview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintBottom_toTopOf="@id/capture"
+
+        tools:layout_editor_absoluteX="0dp" >
+
+
+
+    </androidx.camera.view.PreviewView>
+    <ImageView
+        android:id="@+id/imgSetting"
+        android:layout_width="30sp"
+        android:layout_height="30sp"
+        android:layout_gravity="end"
+        android:layout_marginTop="10dp"
+        android:layout_marginRight="16dp"
+        android:contentDescription="@null"
+        android:src="@drawable/baseline_circle_24"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+    <RadioGroup
+        android:id="@+id/radioButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/tf_out_line"
+        android:orientation="horizontal"
+        android:weightSum="2"
+        android:layout_marginTop="45sp"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <RadioButton
+            android:id="@+id/btnTrainingMode"
+            style="@style/Widget.AppCompat.CompoundButton.RadioButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/toggle_widget_background"
+            android:button="@null"
+            android:gravity="center"
+            android:padding="@dimen/fr_camera_btn_mode_padding"
+            android:text="@string/radio_btn_training_mode"
+            android:textAllCaps="true"
+            android:textColor="@android:color/white"
+            android:textSize="@dimen/fr_camera_btn_mode_text_size" />
+
+        <RadioButton
+            android:id="@+id/btnInferenceMode"
+            style="@style/Widget.AppCompat.CompoundButton.RadioButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/toggle_widget_background"
+            android:button="@null"
+            android:gravity="center"
+            android:padding="@dimen/fr_camera_btn_mode_padding"
+            android:text="@string/radio_btn_inference_mode"
+            android:textAllCaps="true"
+            android:textColor="@android:color/white"
+            android:textSize="@dimen/fr_camera_btn_mode_text_size" />
+    </RadioGroup>
+    <LinearLayout
+        android:layout_width="415dp"
+        android:layout_height="73dp"
+        android:background="@color/black"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:layout_editor_absoluteX="0dp">
+
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/upload_image"
+        android:layout_width="30sp"
+        android:layout_height="30sp"
+        android:layout_alignParentBottom="true"
+
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="centerCrop"
+        android:src="@drawable/baseline_add_photo_alternate_24"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/capture"
+        app:layout_constraintStart_toStartOf="parent"
+        app:tint="#fff" />
+
+    <ImageButton
+        android:id="@+id/capture"
+        android:layout_width="60sp"
+        android:layout_height="60sp"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:background="?attr/selectableItemBackgroundBorderless"
+
+        android:scaleType="centerCrop"
+        android:src="@drawable/round_camera_24"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:tint="#fff" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

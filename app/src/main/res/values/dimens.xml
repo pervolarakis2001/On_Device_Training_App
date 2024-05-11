@@ -1,0 +1,24 @@
+<resources>
+    <dimen name="fab_margin">16dp</dimen>
+    <dimen name="stroke_small">4dp</dimen>
+    <dimen name="round_button_medium">64dp</dimen>
+    <dimen name="setting_dialog_text_size">14sp</dimen>
+    <dimen name="setting_dialog_padding">5dp</dimen>
+    <dimen name="setting_dialog_default_row_margin">16dp</dimen>
+    <dimen name="setting_dialog_control_btn_size">40dp</dimen>
+    <dimen name="setting_dialog_control_text_side_margin">5dp</dimen>
+    <dimen name="setting_dialog_button_bar_margin_top">20dp</dimen>
+    <dimen name="fr_camera_toolbar_icon_padding">15dp</dimen>
+    <dimen name="fr_camera_helper_icon_size">30dp</dimen>
+    <dimen name="fr_camera_control_layout_margin_top">10dp</dimen>
+    <dimen name="fr_camera_btn_mode_padding">10dp</dimen>
+    <dimen name="fr_camera_btn_mode_text_size">20sp</dimen>
+    <dimen name="fr_camera_tv_inference_time_margin">10dp</dimen>
+    <dimen name="fr_camera_cl_button_classes_margin">5dp</dimen>
+    <dimen name="fr_camera_tv_classes_text_size">25sp</dimen>
+    <dimen name="fr_camera_tv_training_state_text_size_large">25sp</dimen>
+    <dimen name="fr_camera_tv_training_state_text_size_medium">20sp</dimen>
+    <dimen name="fr_camera_btn_big_padding">5dp</dimen>
+    <dimen name="fr_camera_view_radius">7dp</dimen>
+    <integer name="setting_dialog_text_min_ems">3</integer>
+</resources>
