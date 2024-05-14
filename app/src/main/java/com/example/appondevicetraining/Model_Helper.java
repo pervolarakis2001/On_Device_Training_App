@@ -49,31 +49,32 @@ import org.tensorflow.lite.DataType;
 
 public class Model_Helper {
     private int numThreads = 2;
-    private  Context context;
-   
+    private Context context;
+
     private Interpreter interpreter = null;
-    private List<TrainingImage> TrainingImages  = new ArrayList<>();
+    private List<TrainingImage> TrainingImages = new ArrayList<>();
 
 
     private int targetWidth = 0;
     private int targetHeight = 0;
 
 
-public Model_Helper(Context context){
-    this.context = context;
-    if (setupModelPersonalization()) {
-        int[] shape = interpreter.getInputTensor(0).shape();
+    public Model_Helper(Context context) {
+        this.context = context;
+        if (setupModelPersonalization()) {
+            int[] shape = interpreter.getInputTensor(0).shape();
 
-        this.targetWidth = shape[2];
-        this.targetHeight = shape[1];
-        Log.d("Model_Helper", "Model personalization successfulu  initialized");
+            this.targetWidth = shape[2];
+            this.targetHeight = shape[1];
+            Log.d("Model_Helper", "Model personalization successfulu  initialized");
 
 
-    } else {
-        Log.d("Model_Helper", "Model personalization failed to initialize");
+        } else {
+            Log.d("Model_Helper", "Model personalization failed to initialize");
 
+        }
     }
-}
+
     // load model and check if is loaded correctly
     public boolean setupModelPersonalization() {
         Interpreter.Options options = new Interpreter.Options();
@@ -88,6 +89,7 @@ public Model_Helper(Context context){
             return false;
         }
     }
+
     private static ByteBuffer loadModelFile(AssetManager assetManager, String filename) throws IOException {
         InputStream inputStream = null;
         try {
@@ -112,25 +114,25 @@ public Model_Helper(Context context){
     }
 
 
-    public void  Close(){
+    public void Close() {
         interpreter = null;
-}
+    }
 
 
     // preprocess training images and convert them to TensorImage for classification
-    public TensorImage PreprocessImages(Bitmap image){
-        int height= image.getHeight();
+    public TensorImage PreprocessImages(Bitmap image) {
+        int height = image.getHeight();
         int width = image.getWidth();
-        int cropSize = Math.min(height,width);
+        int cropSize = Math.min(height, width);
         ImageProcessor.Builder imageProcessor = new ImageProcessor.Builder()
-                .add(new ResizeWithCropOrPadOp(cropSize, cropSize ))
+                .add(new ResizeWithCropOrPadOp(cropSize, cropSize))
                 .add(new ResizeOp(
-                                targetHeight,
-                                targetWidth,
-                                ResizeOp.ResizeMethod.BILINEAR
-                        ))
+                        targetHeight,
+                        targetWidth,
+                        ResizeOp.ResizeMethod.BILINEAR
+                ))
                 .add(new NormalizeOp(0f, 255f));
-        ImageProcessor imageProcessorBuilder = imageProcessor .build();
+        ImageProcessor imageProcessorBuilder = imageProcessor.build();
         TensorImage tensorImage = new TensorImage(DataType.FLOAT32);
         tensorImage.load(image);
         return imageProcessorBuilder.process(tensorImage);
@@ -145,7 +147,8 @@ public Model_Helper(Context context){
         oneHotEncoded.set(n, 1.0f); // Set the nth element to 1.0f
         return oneHotEncoded;
     }
-    public void Training(  List<TrainingSample> ds_train_m,   HashMap< List<Float>, List<TensorImage>> ds_train_n ) {
+
+    public void Training(List<TrainingSample> ds_train_m, HashMap<List<Float>, List<TensorImage>> ds_train_n) {
         int num_Samples = 5;
         int training_steps = 611;
         int NUM_EPOCHS = 1;
@@ -155,22 +158,25 @@ public Model_Helper(Context context){
             setupModelPersonalization();
         }
 
-            if (ds_train_m.size() < num_Samples) {
-                throw new RuntimeException(
-                        String.format(
-                                "Too few samples to start training: need %d, got %d",
-                                num_Samples, ds_train_m.size()
-                        )
-                );
-            }
+        if (ds_train_m.size() < num_Samples) {
+            throw new RuntimeException(
+                    String.format(
+                            "Too few samples to start training: need %d, got %d",
+                            num_Samples, ds_train_m.size()
+                    )
+            );
+        }
 
-
-
-            int c = 0;
+        int c = 0;
         int counter = 0;
         List<Float> losses = new ArrayList<>();
         Map<TrainingSample, Integer> m_dict = new HashMap<>();
 
+        for (Map.Entry<List<Float>, List<TensorImage>> entry : ds_train_n.entrySet()) {
+            List<Float> key = entry.getKey();
+            List<TensorImage> value = entry.getValue();
+
+        }
 
         for (TrainingSample m_sample : ds_train_m) {
             List<TensorImage> X_train = new ArrayList<>();
@@ -195,8 +201,10 @@ public Model_Helper(Context context){
                     ds_n.put(key, value);
                 }
 
+
                 //  concatenate m and n classes
                 Set<List<Float>> n_labels = ds_n.keySet();
+
                 for (List<Float> label : n_labels) {
                     List<TensorImage> x_n = ds_n.get(label);
                     X_train.addAll(x_n);
@@ -204,137 +212,124 @@ public Model_Helper(Context context){
                         Y_train.add(label);
                     }
                 }
-                Log.d("heeelpppp",X_train.size()+"" + Y_train.size());
+
+
                 // Convert X_train, Y_train to appropriate types
                 int numImages = X_train.size();
+                int totalDataSize = 1 * IMG_SIZE * IMG_SIZE * 3 * Float.SIZE / Byte.SIZE;
+                ByteBuffer inputBuffer = ByteBuffer.allocateDirect(totalDataSize);
+                inputBuffer.order(ByteOrder.nativeOrder()); // Set the byte order to native
 
-                TensorBuffer inputFeature0 = TensorBuffer.createFixedSize(new int[]{1, IMG_SIZE, IMG_SIZE, 3}, DataType.FLOAT32);
-
+                int labelBufferSize = 1 * 10 * Float.SIZE / Byte.SIZE;
+                ByteBuffer labelBuffer = ByteBuffer.allocateDirect(labelBufferSize);
+                labelBuffer.order(ByteOrder.nativeOrder());
 
                 for (int i = 0; i < numImages; i++) {
+                    labelBuffer.clear();
+                    inputBuffer.clear();
+
                     ByteBuffer imageData = X_train.get(i).getBuffer();
                     imageData.rewind();
-                    inputFeature0.loadBuffer(imageData);
-                }
+                    inputBuffer.put(imageData);
+                    inputBuffer.rewind();
 
-                TensorBuffer inputFeature1 = TensorBuffer.createFixedSize(new int[]{1, 10}, DataType.FLOAT32);
-
-                for (int j = 0; j < Y_train.size(); j++) {
-                    List<Float> y = Y_train.get(j);
-                    float[] array_helper = new float[y.size()];
-                    for (int i = 0; i < array_helper.length; i++) {
-                        array_helper[i] = y.get(i);
+                    List<Float> y = Y_train.get(i);
+                    for (int j = 0; j < y.size(); j++) {
+                        labelBuffer.putFloat(y.get(j));
                     }
-                    // Load the label data into inputFeature1
-                    inputFeature1.loadArray(array_helper);
-                }
-
-
-
-                Map<String, Object> inputs = new HashMap<>();
-                inputs.put("x", inputFeature0);
-                inputs.put("y",  inputFeature1);
-                Map<String, Object> outputs = new HashMap<>();
-
-                FloatBuffer loss = FloatBuffer.allocate(1);
-                outputs.put("loss", loss);
-
-                interpreter.runSignature(inputs, outputs, "train");
-                losses.set(c,loss.get(0));
-
-
-
-                c++;
-
-                int k = random.nextInt(6) + 5;
-                m_dict.put(new TrainingSample(m_sample.getImage(), m_sample.getLabel()), counter + k);
-
-                System.out.println(
-                        "Finished iteration " + counter + ", current loss: " + losses.get(0));
-
-            }
-
-            for (Map.Entry<TrainingSample, Integer> entry : m_dict.entrySet()) {
-                TrainingSample m_data = entry.getKey();
-                int next_i = entry.getValue();
-
-                List<TensorImage> new_X_train = new ArrayList<>();
-                List<List<Float>> new_Y_train = new ArrayList<>();
-                new_X_train.add(m_data.getImage());
-                new_Y_train.add(m_sample.getLabel());
-
-                if (next_i == counter) {
-                    int k = random.nextInt(6) + 5;
-                    m_dict.put(m_data, m_dict.getOrDefault(m_data, 0) + k);
-
-                    // choose randomly 4 labels from n classes
-                    List<List<Float>> n_classes = new ArrayList<>(ds_train_n.keySet());
-
-                    for (int i = n_classes.size() - 1; i > 0; i--) {
-                        int j = random.nextInt(i + 1);
-                        List<Float> temp = n_classes.get(i);
-                        n_classes.set(i, n_classes.get(j));
-                        n_classes.set(j, temp);
-                    }
-                    List<List<Float>> selectedClasses = n_classes.subList(0, Math.min(n_classes.size(), 4));
-                    HashMap<List<Float>, List<TensorImage>> ds_n = new HashMap<>();
-                    for (List<Float> key : selectedClasses) {
-                        List<TensorImage> value = ds_train_n.get(key);
-                        ds_n.put(key, value);
-                    }
-
-                    //  concatenate m and n classes
-                    Set<List<Float>> n_labels = ds_n.keySet();
-                    for (List<Float> label : n_labels) {
-                        List<TensorImage> x_n = ds_n.get(label);
-                        new_X_train.addAll(x_n);
-                        for (int i = 0; i < 5; i++) {
-                            new_Y_train.add(label);
-                        }
-                    }
-                    // Convert X_train, Y_train to appropriate types
-
-                    int totalByteSize = 0;
-                    for (TensorImage tensorImage :new_X_train) {
-                        totalByteSize += tensorImage.getBuffer().capacity();
-                    }
-
-                    // Allocate ByteBuffer
-                    ByteBuffer newbyteBuffer = ByteBuffer.allocate(totalByteSize);
-
-                    // Serialize Image Data
-                    for (TensorImage tensorImage : new_X_train) {
-                        ByteBuffer imageData = tensorImage.getBuffer();
-
-                        // Save current position to restore later
-                        int position = imageData.position();
-
-                        // Set source buffer's position to 0
-                        imageData.rewind();
-
-                        // Put the data into the target buffer
-                        newbyteBuffer.put(imageData);
-
-                        // Restore position of the source buffer
-                        imageData.position(position);
-                    }
-
-                    // Set position to the beginning for reading
-                    newbyteBuffer.flip();
-
-                    List<float[]> new_y_training = new ArrayList<>();
-                    for(List<Float> y : new_Y_train){
-                        float[] array_helper = new float[y.size()];
-                        for(int i = 0 ; i<array_helper.length; i++){
-                            array_helper[i]= y.get(i);
-                        }
-                        new_y_training.add(array_helper);
-                    }
-
+                    labelBuffer.rewind();
 
                     Map<String, Object> inputs = new HashMap<>();
-                    inputs.put("x",  newbyteBuffer);
-                    inputs.put("y",  new_y_training);
+                    inputs.put("x", inputBuffer);
+                    inputs.put("y", labelBuffer);
+                    Map<String, Object> outputs = new HashMap<>();
+
+                    FloatBuffer loss = FloatBuffer.allocate(1);
+                    outputs.put("loss", loss);
+
+                    interpreter.runSignature(inputs, outputs, "train");
+
+                    // Record the last loss.
+                    if (i == numImages - 1) losses.add(loss.get(0));
+            }
+                c++;
+                System.out.println(
+                        "Finished iteration " + counter + ", current loss: " + losses.get(losses.size()-1));
+
+            int k = random.nextInt(6) + 5;
+            m_dict.put(new TrainingSample(m_sample.getImage(), m_sample.getLabel()), counter + k);
+
+
+        }
+
+        for (Map.Entry<TrainingSample, Integer> entry : m_dict.entrySet()) {
+            TrainingSample m_data = entry.getKey();
+            int next_i = entry.getValue();
+
+            List<TensorImage> new_X_train = new ArrayList<>();
+            List<List<Float>> new_Y_train = new ArrayList<>();
+            new_X_train.add(m_data.getImage());
+            new_Y_train.add(m_sample.getLabel());
+
+            if (next_i == counter) {
+                Log.d("checkTraining" , "it runs");
+                int k = random.nextInt(6) + 5;
+                m_dict.put(m_data, m_dict.getOrDefault(m_data, 0) + k);
+
+                // choose randomly 4 labels from n classes
+                List<List<Float>> n_classes = new ArrayList<>(ds_train_n.keySet());
+
+                for (int i = n_classes.size() - 1; i > 0; i--) {
+                    int j = random.nextInt(i + 1);
+                    List<Float> temp = n_classes.get(i);
+                    n_classes.set(i, n_classes.get(j));
+                    n_classes.set(j, temp);
+                }
+                List<List<Float>> selectedClasses = n_classes.subList(0, Math.min(n_classes.size(), 4));
+                HashMap<List<Float>, List<TensorImage>> ds_n = new HashMap<>();
+                for (List<Float> key : selectedClasses) {
+                    List<TensorImage> value = ds_train_n.get(key);
+                    ds_n.put(key, value);
+                }
+
+                //  concatenate m and n classes
+                Set<List<Float>> n_labels = ds_n.keySet();
+                for (List<Float> label : n_labels) {
+                    List<TensorImage> x_n = ds_n.get(label);
+                    new_X_train.addAll(x_n);
+                    for (int i = 0; i < 5; i++) {
+                        new_Y_train.add(label);
+                    }
+                }
+                // Convert X_train, Y_train to appropriate types
+
+                int newnumImages = new_X_train.size();
+                int totalDataSize = 1 * IMG_SIZE * IMG_SIZE * 3 * Float.SIZE / Byte.SIZE;
+                ByteBuffer newinputBuffer = ByteBuffer.allocateDirect(totalDataSize);
+                newinputBuffer.order(ByteOrder.nativeOrder()); // Set the byte order to native
+
+                int labelBufferSize = 1 * 10 * Float.SIZE / Byte.SIZE;
+                ByteBuffer newlabelBuffer = ByteBuffer.allocateDirect(labelBufferSize);
+                newlabelBuffer.order(ByteOrder.nativeOrder());
+
+                for (int i = 0; i < newnumImages; i++) {
+                    newlabelBuffer.clear();
+                    newinputBuffer.clear();
+
+                    ByteBuffer imageData = new_X_train.get(i).getBuffer();
+                    imageData.rewind();
+                    newinputBuffer.put(imageData);
+                    newinputBuffer.rewind();
+
+                    List<Float> newy = new_Y_train.get(i);
+                    for (int j = 0; j < newy.size(); j++) {
+                        newlabelBuffer.putFloat(newy.get(j));
+                    }
+                    newlabelBuffer.rewind();
+
+                    Map<String, Object> inputs = new HashMap<>();
+                    inputs.put("x", newinputBuffer);
+                    inputs.put("y", newlabelBuffer);
 
 
                     Map<String, Object> outputs = new HashMap<>();
@@ -342,33 +337,58 @@ public Model_Helper(Context context){
                     outputs.put("loss", loss);
 
                     interpreter.runSignature(inputs, outputs, "train");
-                    losses.set(c, loss.get(0));
 
-                    c++;
 
-                    System.out.println(
-                            "Finished training step " + c + ", current loss: " + loss.get(0));
+                    if (i == newnumImages - 1) losses.add(loss.get(0));
                 }
-
+                c++;
+                System.out.println(
+                        "Finished iteration " + counter + ", current loss: " + losses.get(losses.size()-1));
             }
 
-            counter++;
         }
 
-
+        counter++;
     }
 
+
+}
+
     public void Classify(TensorImage image){
-        ByteBuffer input_buffer = image.getBuffer();
+        int totalDataSize = 1 * 160 * 160 * 3 * Float.SIZE / Byte.SIZE;
+        ByteBuffer inputBuffer = ByteBuffer.allocateDirect(totalDataSize);
+        inputBuffer.order(ByteOrder.nativeOrder());
+
+
+        ByteBuffer imageData = image.getBuffer();
+        imageData.rewind();
+        inputBuffer.put(imageData);
+        inputBuffer.rewind();
+
         Map<String, Object> inputs = new HashMap<>();
-        inputs.put("x", input_buffer );
+        inputs.put("x", inputBuffer );
 
 
         Map<String, Object> outputs = new HashMap<>();
-        FloatBuffer loss = FloatBuffer.allocate(1);
-        outputs.put("loss", loss);
+        FloatBuffer probabilities = FloatBuffer.allocate(10);
+        probabilities.rewind();
+        outputs.put("output", probabilities);
 
         interpreter.runSignature(inputs, outputs, "infer");
+        int maxIndex = -1;
+        float maxValue = Float.MIN_VALUE; // Initialize maxValue with the smallest possible float value
+        int i =0 ;
+        probabilities.rewind();
+        while (probabilities.hasRemaining())  {
+            float value = probabilities.get();
+            if (value > maxValue) {
+                maxValue = value;
+                maxIndex = i;
+            }
+            i++;
+        }
+
+        System.out.println("Predicted category " + maxIndex);
     }
 
 }
