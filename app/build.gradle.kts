@@ -57,9 +57,11 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite-support:0.4.2")
     implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.9.0")
     implementation("org.tensorflow:tensorflow-core-platform:0.5.0")
+    implementation("com.google.android.gms:play-services-tflite-java:16.0.1")
+    implementation("com.google.android.gms:play-services-tflite-gpu:16.1.0")
 
-
-
+    implementation("com.opencsv:opencsv:5.5.2")
+    implementation("org.json:json:20201115")
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
