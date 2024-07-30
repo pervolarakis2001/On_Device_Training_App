@@ -51,6 +51,7 @@ import androidx.camera.core.ImageProxy;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.navigation.Navigation;
 import com.example.appondevicetraining.databinding.FragmentCameraBinding;
@@ -111,6 +112,8 @@ public class CameraFragment extends Fragment {
     private RadioButton TrainingBtn;
     private RadioButton InferenceBtn;
     private Bitmap bitmapBuffer;
+    private List<Uri> m_ImageUris = new ArrayList<>();
+
     private PreviewView preview;
     private ProgressBar progressBar;
     private ImageAnalysis imageAnalyzer;
@@ -351,6 +354,8 @@ public class CameraFragment extends Fragment {
         intent.setType("image/*");
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         startActivityForResult(intent, PICK_IMAGES_REQUEST_CODE);
+
+
     }
 
     @Override
@@ -362,47 +367,16 @@ public class CameraFragment extends Fragment {
                 if (data.getClipData() != null) {
                     // Multiple images selected
                     int count = data.getClipData().getItemCount();
+
                     for (int i = 0; i < count; i++) {
                         Uri imageUri = data.getClipData().getItemAt(i).getUri();
-                        try {
-                            // STORE DATA FOR TRAINING
-                            Bitmap bitmap = MediaStore.Images.Media.getBitmap(context.getContentResolver(), imageUri);
-
-                            m_TrainingImages.add(new TrainingImage(bitmap, className));
-
-                        } catch (Exception e) {
-                            // Handle error loading the image
-                            e.printStackTrace();
-                        }
+                        m_ImageUris.add(imageUri);
                     }
-                    if (!m_TrainingImages.isEmpty()) {
-                        // Load images of n classes to a dictionaryntuant
-                        List<Bitmap> ds_n = new ArrayList<>();
-                        List<String> Folder_names = new ArrayList<>(Arrays.asList("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship"));
-                        HashMap<Integer, List<Bitmap>> n_labels_Dictionary = new HashMap<>();
-                        for (int j = 0; j < Folder_names.size(); j++) {
-                            List<Bitmap> bitmaps = new ArrayList<>();
-                            for (int i = 0; i < 49; i++) {
-                                AssetManager assetManager = context.getAssets();
-                                try {
-                                    String filename = Folder_names.get(j) + "/worst_images_" + j + "/image_" + i + ".jpeg";
-                                    InputStream inputStream = assetManager.open(filename);
-                                    Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                                    Log.d("Debugging", "is this is null " + bitmap.getHeight()); // Log statement
-                                    bitmaps.add(bitmap);
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                            n_labels_Dictionary.put(j, bitmaps);
-                        }
-                        // Preprocess Samples
-                        List<TrainingSample> ds_train_m = m_PreprocessSamples(m_TrainingImages);
-                        HashMap<List<Float>, List<TensorImage>> ds_train_n = n_PreprocessSamples(n_labels_Dictionary);
 
-                        // do training
-                        //modelHelper.Training(ds_train_m, ds_train_n,className,);
-                    }
+
+                    RealLifeTraining();
+
+
 
                 } else if (data.getData() != null) {
                     // Single image selected
@@ -412,7 +386,8 @@ public class CameraFragment extends Fragment {
                         Bitmap bitmap = MediaStore.Images.Media.getBitmap(context.getContentResolver(), imageUri);
                         //preprocessing
                         TensorImage data_infer = modelHelper.PreprocessImages(bitmap);
-                        modelHelper.Classify(data_infer);
+                        int pred = modelHelper.Classify(data_infer);
+                        System.out.println("Model prediced class: "+pred);
                     } catch (FileNotFoundException e) {
                         // Handle file not found exception
                         e.printStackTrace();
@@ -420,11 +395,120 @@ public class CameraFragment extends Fragment {
                         // Handle I/O exception
                         e.printStackTrace();
                     }
-
-
             }
         }
+
     }
+
+
+    private void  RealLifeTraining(){
+        FragmentTransaction transaction = getFragmentManager().beginTransaction();
+        transaction.replace(R.id.fragmentContainerView, new ProgressBarAnimation());
+        transaction.addToBackStack(null);
+        transaction.commit();
+        modelHelper.setOnTrainingCompleteListener(new Model_Helper.OnTrainingCompleteListener() {
+            @Override
+            public void onTrainingComplete() {
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        getFragmentManager().popBackStack();
+                        Toast.makeText(getActivity(), "Training complete!", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        });
+
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int totalImages = m_ImageUris.size();
+                List<TrainingSample> ds_train_m = new ArrayList<>() ;
+                for (int start = 0; start < totalImages; start += 10) {
+                    int end = Math.min(start + 10, totalImages);
+                   ds_train_m.addAll(processBatch(m_ImageUris.subList(start, end)));
+                }
+                // collect n classes
+                List<Bitmap> ds_n = new ArrayList<>();
+                List<String> Folder_names = new ArrayList<>(Arrays.asList("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship"));
+                HashMap<Integer, List<Bitmap>> n_labels_Dictionary = new HashMap<>();
+                int index = 0;
+                for (int j = 0; j < Folder_names.size(); j++) {
+                    List<Bitmap> bitmaps = new ArrayList<>();
+                    for (int i = 0; i < 20; i++) {
+                        AssetManager assetManager = context.getAssets();
+                        try {
+                            String filename = Folder_names.get(j) + "/best_images_" + j + "/image_" + i + ".png";
+                            InputStream inputStream = assetManager.open(filename);
+                            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                            bitmaps.add(bitmap);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    n_labels_Dictionary.put(j, bitmaps);
+
+                }
+                // collect test data for n classes
+                HashMap<Integer, List<Bitmap>> n_test_Dictionary = new HashMap<>();
+
+                for (int j = 0; j < Folder_names.size(); j++) {
+                    List<Bitmap> bitmaps = new ArrayList<>();
+                    for (int i = 0; i < 30; i++) {
+                        AssetManager assetManager = context.getAssets();
+                        try {
+                            String filename = Folder_names.get(j) + "/ds_test_strartified_" + j + "/image_" + i + ".png";
+                            InputStream inputStream = assetManager.open(filename);
+                            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                            bitmaps.add(bitmap);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    n_test_Dictionary.put(j, bitmaps);
+
+                }
+                // preprocess m_data with batch size = 3
+
+
+                System.out.println("ok");
+                // preprocess n_data
+                HashMap<List<Float>, List<TensorImage>> ds_test_n = n_PreprocessSamples(n_test_Dictionary);
+                // do training
+
+                modelHelper.Training(ds_train_m,n_labels_Dictionary,className,ds_test_n);
+
+                getActivity().runOnUiThread(() ->
+                        Toast.makeText(getContext(), "All images processed", Toast.LENGTH_SHORT).show()
+                    );
+                 }
+              }).start();
+
+
+
+    }
+
+    private List<TrainingSample> processBatch(List<Uri> batchUris) {
+        List<TrainingImage> training = new ArrayList<>();
+
+        for (Uri imageUri : batchUris) {
+            try {
+                Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContext().getContentResolver(), imageUri);
+                training.add(new TrainingImage(bitmap, className));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        getActivity().runOnUiThread(() ->
+                Toast.makeText(getContext(), "Batch processed", Toast.LENGTH_SHORT).show()
+        );
+
+        return m_PreprocessSamples(training);
+    }
+
+
 
     private void  Cifar10_Training(){
             // collect n classes

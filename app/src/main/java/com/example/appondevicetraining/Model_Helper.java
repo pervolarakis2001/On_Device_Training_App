@@ -156,17 +156,17 @@ public class Model_Helper extends Fragment {
     // preprocess training images and convert them to TensorImage for classification
     public TensorImage PreprocessImages(Bitmap image) {
 
-        int height = image.getHeight();
-        int width = image.getWidth();
-        int cropSize = Math.min(height, width);
+       // int height = image.getHeight();
+        //int width = image.getWidth();
+        //int cropSize = Math.min(height, width);
         ImageProcessor.Builder imageProcessor = new ImageProcessor.Builder()
-                .add(new NormalizeOp(0f, 255f));
                 //.add(new ResizeWithCropOrPadOp(cropSize, cropSize))
-                //.add(new ResizeOp(
-                    //    targetHeight,
-                  //      targetWidth,
-                        //ResizeOp.ResizeMethod.BILINEAR
-                //))
+                .add(new ResizeOp(
+                        targetHeight,
+                      targetWidth,
+                        ResizeOp.ResizeMethod.BILINEAR
+                ))
+                .add(new NormalizeOp(0f, 255f));
 
         ImageProcessor imageProcessorBuilder = imageProcessor.build();
         TensorImage tensorImage = new TensorImage(DataType.FLOAT32);
@@ -186,7 +186,7 @@ public class Model_Helper extends Fragment {
     }
 
     public void Training(List<TrainingSample> ds_train_m, HashMap<Integer, List<Bitmap>> train_n, String numClass,HashMap<List<Float>, List<TensorImage>> ds_test_n) {
-        int num_Samples = 93;
+        int num_Samples = 2;
         int training_steps = 611;
         int NUM_EPOCHS = 1;
         int IMG_SIZE = 160;
