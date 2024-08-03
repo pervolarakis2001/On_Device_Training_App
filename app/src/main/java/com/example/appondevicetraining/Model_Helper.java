@@ -2,42 +2,28 @@ package com.example.appondevicetraining;
 
 import static java.lang.Math.abs;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
-import android.graphics.Color;
-import android.os.Looper;
 import android.util.Log;
 import android.widget.ProgressBar;
-import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentActivity;
+
+import com.google.android.gms.tflite.gpu.GpuDelegate;
 
 import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.Interpreter;
+//import org.tensorflow.lite.gpu.GpuDelegateFactory;
 import org.tensorflow.lite.InterpreterApi;
-import org.tensorflow.lite.Tensor;
-import org.tensorflow.lite.gpu.CompatibilityList;
-import org.tensorflow.lite.gpu.GpuDelegate;
 import org.tensorflow.lite.gpu.GpuDelegateFactory;
-import org.tensorflow.lite.support.common.FileUtil;
 import org.tensorflow.lite.support.image.ImageProcessor;
-
-import org.tensorflow.lite.support.common.FileUtil;
 import org.tensorflow.lite.support.common.ops.NormalizeOp;
-import org.tensorflow.lite.support.image.ImageProcessor;
 import org.tensorflow.lite.support.image.TensorImage;
 import org.tensorflow.lite.support.image.ops.ResizeOp;
 import org.tensorflow.lite.support.image.ops.ResizeWithCropOrPadOp;
-import org.tensorflow.lite.support.image.ops.Rot90Op;
-import org.tensorflow.lite.support.label.Category;
-import org.tensorflow.lite.support.label.TensorLabel;
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,23 +31,11 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.logging.Handler;
 import java.util.Random;
-import org.tensorflow.ndarray.FloatNdArray;
-import org.tensorflow.ndarray.NdArrays;
-import org.tensorflow.ndarray.Shape;
-import org.tensorflow.lite.DataType;
-import com.opencsv.CSVReader;
-import java.io.FileReader;
-import java.io.IOException;
-import org.tensorflow.lite.gpu.CompatibilityList;
 
 public class Model_Helper extends Fragment {
     private int numThreads = 2;
@@ -92,7 +66,7 @@ public class Model_Helper extends Fragment {
         this.context = context;
         if (setupModelPersonalization()) {
             int[] shape = interpreter.getInputTensor(0).shape();
-
+            System.out.println(shape[0]);
             this.targetWidth = shape[2];
             this.targetHeight = shape[1];
             Log.d("Model_Helper", "Model personalization successfulu  initialized");
@@ -118,10 +92,12 @@ public class Model_Helper extends Fragment {
             options.setNumThreads(numThreads);
             interpreter = new Interpreter(model, options);
             return true;
+
         } catch (IOException e) {
             Log.e("Model", "TFLite failed to load model with error: " + e.getMessage());
             return false;
         }
+
     }
 
     private static ByteBuffer loadModelFile(AssetManager assetManager, String filename) throws IOException {
@@ -156,16 +132,16 @@ public class Model_Helper extends Fragment {
     // preprocess training images and convert them to TensorImage for classification
     public TensorImage PreprocessImages(Bitmap image) {
 
-       // int height = image.getHeight();
-        //int width = image.getWidth();
-        //int cropSize = Math.min(height, width);
+       int height = image.getHeight();
+        int width = image.getWidth();
+        int cropSize = Math.min(height, width);
         ImageProcessor.Builder imageProcessor = new ImageProcessor.Builder()
                 //.add(new ResizeWithCropOrPadOp(cropSize, cropSize))
-                .add(new ResizeOp(
-                        targetHeight,
-                      targetWidth,
-                        ResizeOp.ResizeMethod.BILINEAR
-                ))
+               // .add(new ResizeOp(
+               //         targetHeight,
+                 //     targetWidth,
+                //       ResizeOp.ResizeMethod.BILINEAR
+               //))
                 .add(new NormalizeOp(0f, 255f));
 
         ImageProcessor imageProcessorBuilder = imageProcessor.build();
@@ -194,7 +170,8 @@ public class Model_Helper extends Fragment {
         if (interpreter == null) {
             setupModelPersonalization();
         }
-
+        int[] shape = interpreter.getInputTensor(0).shape();
+        System.out.println(shape[0]);
         if (ds_train_m.size() < num_Samples) {
             throw new RuntimeException(
                     String.format(
@@ -216,14 +193,14 @@ public class Model_Helper extends Fragment {
         List<Object> time = new ArrayList<>();
         List<Object> losses = new ArrayList<>();
 
-        // choose 10 images per n class
+        // choose 5 images per n class
         HashMap<List<Float>, List<TensorImage>> copy_ds_train_n =  new HashMap<>();
         for (Map.Entry<Integer, List<Bitmap>> entry : train_n.entrySet()) {
             int key = entry.getKey();
             List<TensorImage> copiedValues = new ArrayList<>();
             List<Bitmap> retrievedValues = entry.getValue();
             for(Bitmap image: retrievedValues){
-                if(copiedValues.size()==10){
+                if(copiedValues.size()==5){
                     break;
                 }
                 TensorImage img = PreprocessImages(image);
@@ -267,13 +244,17 @@ public class Model_Helper extends Fragment {
 
                 //  concatenate m and n classes
 
-                int totalDataSize = 1 * IMG_SIZE * IMG_SIZE * 3 * Float.SIZE / Byte.SIZE;
-                ByteBuffer inputBuffer = ByteBuffer.allocateDirect(totalDataSize);
-                inputBuffer.order(ByteOrder.nativeOrder()); // Set the byte order to native
+                int totalDataSize = 5 * IMG_SIZE * IMG_SIZE * 3;
+                FloatBuffer inputBuffer = ByteBuffer.allocateDirect(totalDataSize * Float.BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
 
-                int labelBufferSize = 1 * 10 * Float.SIZE / Byte.SIZE;
-                ByteBuffer labelBuffer = ByteBuffer.allocateDirect(labelBufferSize);
-                labelBuffer.order(ByteOrder.nativeOrder());
+
+
+               // int labelBufferSize = 5 * 10 * Float.SIZE / Byte.SIZE;
+               // ByteBuffer labelBuffer = ByteBuffer.allocateDirect(labelBufferSize).order(ByteOrder.nativeOrder());
+
+                // Add m_sample data
+                X_train.add(m_sample.getImage() );
+                Y_train.add(m_sample.getLabel());
 
                 for (Map.Entry<TensorImage, List<Float>> e : ds_n.entrySet()) {
                     TensorImage x_n = e.getKey();
@@ -283,49 +264,71 @@ public class Model_Helper extends Fragment {
                     Y_train.add(y_n);
 
                 }
-                // Add m_sample data
-                X_train.add(m_sample.getImage() );
-                Y_train.add(m_sample.getLabel());
+
                 int numImages = X_train.size();
                 System.out.println(numImages);
+
                 // Convert X_train, Y_train to appropriate types
+                float[][][][] trainImages = new float[5][160][160][3];
+                float[][] trainLabels = new float[5][10];
+
                 for (int i = 0; i < numImages; i++) {
-                    labelBuffer.clear();
-                    inputBuffer.clear();
+                   // labelBuffer.clear();
+                   // inputBuffer.clear();
 
-                    ByteBuffer imageData = X_train.get(i).getBuffer();
-                    imageData.rewind();
-                    inputBuffer.put(imageData);
-                    inputBuffer.rewind();
+                    TensorImage imageData = X_train.get(i);
+                    TensorBuffer tensorBuffer = imageData.getTensorBuffer();
 
-                    List<Float> y = Y_train.get(i);
-                    for (int j = 0; j < y.size(); j++) {
-                        labelBuffer.putFloat(y.get(j));
+                    float[] imageFloatArray = tensorBuffer.getFloatArray();
+                    //inputBuffer.put(imageFloatArray);
+                    int index = 0;
+                    for (int row = 0; row < 160; row++) {
+                        for (int col = 0; col < 160; col++) {
+                            for (int channel = 0; channel < 3; channel++) {
+                                trainImages[i][row][col][channel] = imageFloatArray[index++];
+                            }
+                        }
                     }
-                    labelBuffer.rewind();
 
-                    Map<String, Object> inputs = new HashMap<>();
-                    inputs.put("x", inputBuffer);
-                    inputs.put("y", labelBuffer);
-                    Map<String, Object> outputs = new HashMap<>();
-
-                    FloatBuffer loss = FloatBuffer.allocate(1);
-                    FloatBuffer prediction = FloatBuffer.allocate(1* 10 * Float.SIZE / Byte.SIZE);
-                    outputs.put("output", prediction);
-                    outputs.put("loss", loss);
-
-                    long startTime = System.nanoTime();
-                    interpreter.runSignature(inputs, outputs, "train");
-                    long endTime = System.nanoTime();
-                    long elapsedTime = endTime - startTime;
-                    double elapsedTimeInSeconds = elapsedTime / 1_000_000_000.0;
-                    time.add(elapsedTimeInSeconds);
+                    //List<Float> y = Y_train.get(i);
+                    //for (float label : y) {
+                    //    labelBuffer.putFloat(label);
+                    //}
+                    List<Float> label = Y_train.get(i);
+                    for (int j = 0; j < 10; j++) {
+                        trainLabels[i][j] = label.get(j);
+                    }
 
                     // Record the last loss.
-                    if (i == numImages - 1) losses.add(loss.get(0));
-
+                   // if (i == numImages - 1) losses.add(loss.get(0));
 
                 }
+
+
+                //inputBuffer.rewind();
+                //labelBuffer.rewind();
+
+                Map<String, Object> inputs = new HashMap<>();
+                inputs.put("x", trainImages);
+                inputs.put("y", trainLabels);
+                Map<String, Object> outputs = new HashMap<>();
+
+                FloatBuffer loss = FloatBuffer.allocate(1);
+                FloatBuffer prediction = FloatBuffer.allocate(5* 10 * Float.SIZE / Byte.SIZE);
+
+                outputs.put("loss", loss);
+
+
+                long startTime = System.nanoTime();
+                interpreter.runSignature(inputs, outputs,"train");
+                long endTime = System.nanoTime();
+                long elapsedTime = endTime - startTime;
+                double elapsedTimeInSeconds = elapsedTime / 1_000_000_000.0;
+                time.add(elapsedTimeInSeconds);
+
+                losses.add(loss.get(0));
+
+
 
 
 
@@ -392,61 +395,93 @@ public class Model_Helper extends Fragment {
 
                         //  concatenate m and n classes
 
-                        int newtotalDataSize = 1 * IMG_SIZE * IMG_SIZE * 3 * Float.SIZE / Byte.SIZE;
-                        ByteBuffer newinputBuffer = ByteBuffer.allocateDirect(newtotalDataSize);
-                        newinputBuffer.order(ByteOrder.nativeOrder()); // Set the byte order to native
+                        int newtotalDataSize =  5 * IMG_SIZE * IMG_SIZE * 3;
+                        //FloatBuffer newinputBuffer = ByteBuffer.allocateDirect(totalDataSize * Float.BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
 
-                        int newlabelBufferSize = 1 * 10 * Float.SIZE / Byte.SIZE;
-                        ByteBuffer newlabelBuffer = ByteBuffer.allocateDirect(newlabelBufferSize);
-                        newlabelBuffer.order(ByteOrder.nativeOrder());
+
+
+                        int newlabelBufferSize = 5 * 10 * Float.SIZE / Byte.SIZE;
+                       // ByteBuffer newlabelBuffer = ByteBuffer.allocateDirect(labelBufferSize).order(ByteOrder.nativeOrder());
+
+                        // Add m_sample data
+
 
                         for (Map.Entry<TensorImage, List<Float>> e : newds_n.entrySet()) {
                             TensorImage x_n = e.getKey();
                             List<Float> y_n = e.getValue();
                             new_X_train.add(x_n);
                             new_Y_train.add(y_n);
+
                         }
-                        // Add m_sample data
-                       new_X_train.add(m_data.getImage());
+                        new_X_train.add(m_data.getImage());
                         new_Y_train.add(m_data.getLabel());
+                        float[][][][] newtrainImages = new float[5][160][160][3];
+                        float[][] newtrainLabels = new float[5][10];
+
                         int newnumImages = new_X_train.size();
+                        System.out.println(newnumImages);
                         // Convert X_train, Y_train to appropriate types
                         for (int i = 0; i < newnumImages; i++) {
-                            newlabelBuffer.clear();
-                            newinputBuffer.clear();
+                           // newlabelBuffer.clear();
+                           // newinputBuffer.clear();
 
-                            ByteBuffer imageData = new_X_train.get(i).getBuffer();
-                            imageData.rewind();
-                            newinputBuffer.put(imageData);
-                            newinputBuffer.rewind();
+                            TensorImage imageData = new_X_train.get(i);
+                            TensorBuffer tensorBuffer = imageData.getTensorBuffer();
 
-                            List<Float> newy = new_Y_train.get(i);
-                            for (int j = 0; j < newy.size(); j++) {
-                                newlabelBuffer.putFloat(newy.get(j));
+                            float[] imageFloatArray = tensorBuffer.getFloatArray();
+                            //newinputBuffer.put(imageFloatArray);
+
+
+                            //List<Float> newy = new_Y_train.get(i);
+
+                           // for (float label : newy) {
+                            //    newlabelBuffer.putFloat(label);
+                           // }
+                            int index = 0;
+                            for (int row = 0; row < 160; row++) {
+                                for (int col = 0; col < 160; col++) {
+                                    for (int channel = 0; channel < 3; channel++) {
+                                        newtrainImages[i][row][col][channel] = imageFloatArray[index++];
+                                    }
+                                }
                             }
-                            newlabelBuffer.rewind();
 
-                            Map<String, Object> newinputs = new HashMap<>();
-                            newinputs.put("x", newinputBuffer);
-                            newinputs.put("y", newlabelBuffer);
+                            //List<Float> y = Y_train.get(i);
+                            //for (float label : y) {
+                            //    labelBuffer.putFloat(label);
+                            //}
+                            List<Float> label = Y_train.get(i);
+                            for (int j = 0; j < 10; j++) {
+                                newtrainLabels[i][j] = label.get(j);
+                            }
 
-
-                            Map<String, Object> newoutputs = new HashMap<>();
-                            FloatBuffer newloss = FloatBuffer.allocate(1);
-                            FloatBuffer newprediction = FloatBuffer.allocate(1 * 10 * Float.SIZE / Byte.SIZE);
-                            newoutputs.put("output", newprediction);
-                            newoutputs.put("loss", newloss);
-
-                            long newstartTime = System.nanoTime();
-                            interpreter.runSignature(newinputs, newoutputs, "train");
-                            long newendTime = System.nanoTime();
-                            long newelapsedTime = newendTime - newstartTime;
-                            double newelapsedTimeInSeconds = newelapsedTime / 1_000_000_000.0;
-                            time.add(newelapsedTimeInSeconds);
                             // Record  loss.
 
-                            if (i == newnumImages - 1) losses.add(newloss.get(0));
+                            //if (i == newnumImages - 1) losses.add(newloss.get(0));
                         }
+
+                       // newinputBuffer.rewind();
+                       // newlabelBuffer.rewind();
+                        Map<String, Object> newinputs = new HashMap<>();
+                        newinputs.put("x", newtrainImages);
+                        newinputs.put("y",  newtrainLabels);
+
+
+                        Map<String, Object> newoutputs = new HashMap<>();
+                        FloatBuffer newloss = FloatBuffer.allocate(1);
+                        FloatBuffer newprediction = FloatBuffer.allocate(5 * 10 * Float.SIZE / Byte.SIZE);
+
+                        newoutputs.put("loss", newloss);
+
+
+                        long newstartTime = System.nanoTime();
+                        interpreter.runSignature(newinputs, newoutputs,"train");
+                        long newendTime = System.nanoTime();
+                        long newelapsedTime = newendTime - newstartTime;
+                        double newelapsedTimeInSeconds = newelapsedTime / 1_000_000_000.0;
+                        time.add(newelapsedTimeInSeconds);
+
+                        losses.add(newloss.get(0));
 
 
 
@@ -515,7 +550,7 @@ public class Model_Helper extends Fragment {
         probabilities.rewind();
         outputs.put("output", probabilities);
 
-        interpreter.runSignature(inputs, outputs, "infer");
+        interpreter.runSignature(inputs, outputs,"infer");
         int maxIndex = -1;
         float maxValue = Float.MIN_VALUE; // Initialize maxValue with the smallest possible float value
         int i =0 ;
@@ -590,7 +625,7 @@ public class Model_Helper extends Fragment {
             int y_pred =  Classify(x);
 
             if(y_actual == y_pred){
-                correct_count_m+=1;
+                correct_count_m+= 1;
             }
         }
         float accuracy_m = (float) correct_count_m / X_test_m.size();

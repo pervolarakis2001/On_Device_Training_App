@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     alias(libs.plugins.androidApplication)
 }
@@ -59,6 +61,7 @@ dependencies {
     implementation("org.tensorflow:tensorflow-core-platform:0.5.0")
     implementation("com.google.android.gms:play-services-tflite-java:16.0.1")
     implementation("com.google.android.gms:play-services-tflite-gpu:16.1.0")
+
 
     implementation("com.opencsv:opencsv:5.5.2")
     implementation("org.json:json:20201115")

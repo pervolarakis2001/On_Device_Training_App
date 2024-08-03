@@ -93,7 +93,7 @@ import org.tensorflow.lite.support.image.ops.ResizeOp;
 import org.tensorflow.lite.support.image.ops.ResizeWithCropOrPadOp;
 import org.tensorflow.lite.support.model.Model;
 import com.example.appondevicetraining.Model_Helper;
-import com.google.flatbuffers.Table;
+//import com.google.flatbuffers.Table;
 import com.opencsv.CSVReader;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -533,7 +533,7 @@ public class CameraFragment extends Fragment {
 
             }
             // collect m classes
-            for (int i = 0; i < 96; i++) {
+            for (int i = 0; i < 125; i++) {
                 AssetManager assetManager = context.getAssets();
                 try {
                     String filename = "truck" + "/ds_train_m" + "/image_" + i + ".png";
