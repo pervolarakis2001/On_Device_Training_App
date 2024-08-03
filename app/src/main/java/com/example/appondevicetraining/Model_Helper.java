@@ -545,7 +545,7 @@ public class Model_Helper extends Fragment {
         Map<String, Object> inputs = new HashMap<>();
         inputs.put("x", inputBuffer );
 
-
+//
         Map<String, Object> outputs = new HashMap<>();
         FloatBuffer probabilities = FloatBuffer.allocate(10);
         probabilities.rewind();
