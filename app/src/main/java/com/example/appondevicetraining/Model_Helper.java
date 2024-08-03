@@ -445,7 +445,7 @@ public class Model_Helper extends Fragment {
                                     }
                                 }
                             }
-
+//
                             //List<Float> y = Y_train.get(i);
                             //for (float label : y) {
                             //    labelBuffer.putFloat(label);
