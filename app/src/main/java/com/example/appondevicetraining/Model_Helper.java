@@ -91,6 +91,7 @@ public class Model_Helper extends Fragment {
             options.addDelegateFactory(new GpuDelegateFactory());
             options.setNumThreads(numThreads);
             interpreter = new Interpreter(model, options);
+            interpreter.allocateTensors();
             return true;
 
         } catch (IOException e) {
@@ -253,8 +254,7 @@ public class Model_Helper extends Fragment {
                // ByteBuffer labelBuffer = ByteBuffer.allocateDirect(labelBufferSize).order(ByteOrder.nativeOrder());
 
                 // Add m_sample data
-                X_train.add(m_sample.getImage() );
-                Y_train.add(m_sample.getLabel());
+
 
                 for (Map.Entry<TensorImage, List<Float>> e : ds_n.entrySet()) {
                     TensorImage x_n = e.getKey();
@@ -264,7 +264,8 @@ public class Model_Helper extends Fragment {
                     Y_train.add(y_n);
 
                 }
-
+                X_train.add(m_sample.getImage() );
+                Y_train.add(m_sample.getLabel());
                 int numImages = X_train.size();
                 System.out.println(numImages);
 
@@ -450,7 +451,7 @@ public class Model_Helper extends Fragment {
                             //for (float label : y) {
                             //    labelBuffer.putFloat(label);
                             //}
-                            List<Float> label = Y_train.get(i);
+                            List<Float> label = new_Y_train.get(i);
                             for (int j = 0; j < 10; j++) {
                                 newtrainLabels[i][j] = label.get(j);
                             }
