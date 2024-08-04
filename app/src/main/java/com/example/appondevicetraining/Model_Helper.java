@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -201,11 +202,12 @@ public class Model_Helper extends Fragment {
             List<TensorImage> copiedValues = new ArrayList<>();
             List<Bitmap> retrievedValues = entry.getValue();
             for(Bitmap image: retrievedValues){
+                TensorImage img = PreprocessImages(image);
+                copiedValues.add(img);
                 if(copiedValues.size()==5){
                     break;
                 }
-                TensorImage img = PreprocessImages(image);
-                copiedValues.add(img);
+
             }
             List<Float> label = encoding(key,10);
 
@@ -222,50 +224,54 @@ public class Model_Helper extends Fragment {
 
             List<TensorImage> X_train = new ArrayList<>();
             List<List<Float>> Y_train = new ArrayList<>();
-
-            if (!m_dict.containsKey(new TrainingSample(m_sample.getImage(), m_sample.getLabel()))) {
+// TODO  : THIS IF STATEMENT DOES NOT NEED
                 // choose randomly 4 labels from n classes
                 List<List<Float>> n_classes = new ArrayList<>(ds_train_n.keySet());
 
-                for (int i = n_classes.size() - 1; i > 0; i--) {
-                    int j = random.nextInt(i + 1);
-                    List<Float> temp = n_classes.get(i);
-                    n_classes.set(i, n_classes.get(j));
-                    n_classes.set(j, temp);
-                }
-                List<List<Float>> selectedClasses = n_classes.subList(0, Math.min(n_classes.size(), 4));
-                HashMap<TensorImage, List<Float>> ds_n = new HashMap<>();
-                for (List<Float> key : selectedClasses) {
-                    List<TensorImage> value = ds_train_n.get(key);
-                    int randomIndex = random.nextInt(value.size());
-                    TensorImage randomImage = value.get(randomIndex);
-
-                    ds_n.put(randomImage, key);
+                // Flatten the values of ds_train_n into a single list
+                List<Map.Entry<TensorImage, List<Float>>> allEntries = new ArrayList<>();
+                for (Map.Entry<List<Float>, List<TensorImage>> entry : ds_train_n.entrySet()) {
+                    List<Float> key = entry.getKey();
+                    List<TensorImage> value = entry.getValue();
+                    for (TensorImage img : value) {
+                        allEntries.add(new AbstractMap.SimpleEntry<>(img, key));
+                    }
                 }
 
+            // Shuffle the list to ensure randomness
+            for (int i = allEntries.size() - 1; i > 0; i--) {
+                int j = random.nextInt(i + 1);
+                Map.Entry<TensorImage, List<Float>> temp = allEntries.get(i);
+                allEntries.set(i, allEntries.get(j));
+                allEntries.set(j, temp);
+            }
+
+            // Select the first 4 elements from the shuffled list
+            List<Map.Entry<TensorImage, List<Float>>> selectedEntries = allEntries.subList(0, Math.min(allEntries.size(), 4));
+
+            // Create a new HashMap to store the selected elements
+            HashMap<TensorImage, List<Float>> ds_n = new HashMap<>();
+            for (Map.Entry<TensorImage, List<Float>> entry : selectedEntries) {
+                ds_n.put(entry.getKey(), entry.getValue());
+            }
                 //  concatenate m and n classes
 
                 int totalDataSize = 5 * IMG_SIZE * IMG_SIZE * 3;
                 FloatBuffer inputBuffer = ByteBuffer.allocateDirect(totalDataSize * Float.BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
-
-
-
-               // int labelBufferSize = 5 * 10 * Float.SIZE / Byte.SIZE;
-               // ByteBuffer labelBuffer = ByteBuffer.allocateDirect(labelBufferSize).order(ByteOrder.nativeOrder());
+               int labelBufferSize = 5 * 10 * Float.SIZE / Byte.SIZE;
+                ByteBuffer labelBuffer = ByteBuffer.allocateDirect(labelBufferSize).order(ByteOrder.nativeOrder());
 
                 // Add m_sample data
-
-
                 for (Map.Entry<TensorImage, List<Float>> e : ds_n.entrySet()) {
                     TensorImage x_n = e.getKey();
                     List<Float> y_n = e.getValue();
 
                     X_train.add(x_n);
                     Y_train.add(y_n);
-
                 }
-                X_train.add(m_sample.getImage() );
+                X_train.add(m_sample.getImage());
                 Y_train.add(m_sample.getLabel());
+
                 int numImages = X_train.size();
                 System.out.println(numImages);
 
@@ -281,7 +287,9 @@ public class Model_Helper extends Fragment {
                     TensorBuffer tensorBuffer = imageData.getTensorBuffer();
 
                     float[] imageFloatArray = tensorBuffer.getFloatArray();
-                    //inputBuffer.put(imageFloatArray);
+                    inputBuffer.put(imageFloatArray);
+
+                    /*
                     int index = 0;
                     for (int row = 0; row < 160; row++) {
                         for (int col = 0; col < 160; col++) {
@@ -291,18 +299,19 @@ public class Model_Helper extends Fragment {
                         }
                     }
 
-                    //List<Float> y = Y_train.get(i);
-                    //for (float label : y) {
-                    //    labelBuffer.putFloat(label);
-                    //}
-                    List<Float> label = Y_train.get(i);
+                     List<Float> label = Y_train.get(i);
                     for (int j = 0; j < 10; j++) {
                         trainLabels[i][j] = label.get(j);
+                    }
+                    */
+
+                    List<Float> y = Y_train.get(i);
+                    for (float label : y) {
+                       labelBuffer.putFloat(label);
                     }
 
                     // Record the last loss.
                    // if (i == numImages - 1) losses.add(loss.get(0));
-
                 }
 
 
@@ -310,8 +319,8 @@ public class Model_Helper extends Fragment {
                 //labelBuffer.rewind();
 
                 Map<String, Object> inputs = new HashMap<>();
-                inputs.put("x", trainImages);
-                inputs.put("y", trainLabels);
+                inputs.put("x", inputBuffer.rewind());
+                inputs.put("y", labelBuffer.rewind());
                 Map<String, Object> outputs = new HashMap<>();
 
                 FloatBuffer loss = FloatBuffer.allocate(1);
@@ -375,34 +384,47 @@ public class Model_Helper extends Fragment {
                         int w = random.nextInt(6) + 5;
                         m_dict.put(m_data, m_dict.getOrDefault(m_data, 0) + w);
 
-                        // choose randomly 4 labels from n classes
-                        List<List<Float>> newn_classes = new ArrayList<>(ds_train_n.keySet());
 
-                        for (int i = newn_classes.size() - 1; i > 0; i--) {
+
+                        // Flatten the values of ds_train_n into a single list
+                        List<Map.Entry<TensorImage, List<Float>>> newallEntries = new ArrayList<>();
+                        for (Map.Entry<List<Float>, List<TensorImage>> newentry : ds_train_n.entrySet()) {
+                            List<Float> key = newentry.getKey();
+                            List<TensorImage> newvalue = newentry.getValue();
+                            for (TensorImage img : newvalue) {
+                                newallEntries.add(new AbstractMap.SimpleEntry<>(img, key));
+                            }
+                        }
+
+                        // Shuffle the list to ensure randomness
+                        for (int i = newallEntries.size() - 1; i > 0; i--) {
                             int j = random.nextInt(i + 1);
-                            List<Float> temp = newn_classes.get(i);
-                            newn_classes.set(i, newn_classes.get(j));
-                            newn_classes.set(j, temp);
+                            Map.Entry<TensorImage, List<Float>> temp = newallEntries.get(i);
+                            newallEntries.set(i, newallEntries.get(j));
+                            newallEntries.set(j, temp);
                         }
-                        List<List<Float>> newselectedClasses = newn_classes.subList(0, Math.min(newn_classes.size(), 4));
-                        HashMap<TensorImage, List<Float>> newds_n = new HashMap<>();
-                        for (List<Float> key : newselectedClasses) {
-                            List<TensorImage> value = ds_train_n.get(key);
-                            int randomIndex = random.nextInt(value.size());
-                            TensorImage randomImage = value.get(randomIndex);
 
-                            newds_n.put(randomImage, key);
+                        // Select the first 4 elements from the shuffled list
+                        List<Map.Entry<TensorImage, List<Float>>> newselectedEntries = newallEntries.subList(0, Math.min(newallEntries.size(), 4));
+
+                        // Create a new HashMap to store the selected elements
+                        HashMap<TensorImage, List<Float>> newds_n = new HashMap<>();
+                        for (Map.Entry<TensorImage, List<Float>> newentry : newselectedEntries) {
+                            newds_n.put(newentry.getKey(), newentry.getValue());
                         }
+
+                        //--------------
+
 
                         //  concatenate m and n classes
 
                         int newtotalDataSize =  5 * IMG_SIZE * IMG_SIZE * 3;
-                        //FloatBuffer newinputBuffer = ByteBuffer.allocateDirect(totalDataSize * Float.BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
+                        FloatBuffer newinputBuffer = ByteBuffer.allocateDirect(totalDataSize * Float.BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
 
 
 
                         int newlabelBufferSize = 5 * 10 * Float.SIZE / Byte.SIZE;
-                       // ByteBuffer newlabelBuffer = ByteBuffer.allocateDirect(labelBufferSize).order(ByteOrder.nativeOrder());
+                       ByteBuffer newlabelBuffer = ByteBuffer.allocateDirect(newlabelBufferSize).order(ByteOrder.nativeOrder());
 
                         // Add m_sample data
 
@@ -416,6 +438,7 @@ public class Model_Helper extends Fragment {
                         }
                         new_X_train.add(m_data.getImage());
                         new_Y_train.add(m_data.getLabel());
+
                         float[][][][] newtrainImages = new float[5][160][160][3];
                         float[][] newtrainLabels = new float[5][10];
 
@@ -430,14 +453,15 @@ public class Model_Helper extends Fragment {
                             TensorBuffer tensorBuffer = imageData.getTensorBuffer();
 
                             float[] imageFloatArray = tensorBuffer.getFloatArray();
-                            //newinputBuffer.put(imageFloatArray);
+                            newinputBuffer.put(imageFloatArray);
 
 
-                            //List<Float> newy = new_Y_train.get(i);
+                            List<Float> newy = new_Y_train.get(i);
 
-                           // for (float label : newy) {
-                            //    newlabelBuffer.putFloat(label);
-                           // }
+                            for (float label : newy) {
+                                newlabelBuffer.putFloat(label);
+                            }
+                            /*
                             int index = 0;
                             for (int row = 0; row < 160; row++) {
                                 for (int col = 0; col < 160; col++) {
@@ -446,26 +470,22 @@ public class Model_Helper extends Fragment {
                                     }
                                 }
                             }
-//
-                            //List<Float> y = Y_train.get(i);
-                            //for (float label : y) {
-                            //    labelBuffer.putFloat(label);
-                            //}
+
+
                             List<Float> label = new_Y_train.get(i);
                             for (int j = 0; j < 10; j++) {
                                 newtrainLabels[i][j] = label.get(j);
                             }
-
+                                */
                             // Record  loss.
 
                             //if (i == newnumImages - 1) losses.add(newloss.get(0));
                         }
 
-                       // newinputBuffer.rewind();
-                       // newlabelBuffer.rewind();
+
                         Map<String, Object> newinputs = new HashMap<>();
-                        newinputs.put("x", newtrainImages);
-                        newinputs.put("y",  newtrainLabels);
+                        newinputs.put("x", newinputBuffer.rewind());
+                        newinputs.put("y",  newlabelBuffer.rewind());
 
 
                         Map<String, Object> newoutputs = new HashMap<>();
@@ -517,7 +537,7 @@ public class Model_Helper extends Fragment {
                 }
                 counter++;
 
-            }
+
         }
         savePrediction(acc_n, "accuracy_n");
         savePrediction(acc_m, "accuracy_m");
