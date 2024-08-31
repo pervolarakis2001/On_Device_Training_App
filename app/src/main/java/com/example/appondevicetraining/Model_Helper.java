@@ -27,6 +27,7 @@ import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SyncFailedException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -86,7 +87,7 @@ public class Model_Helper extends Fragment {
 
         AssetManager assetManager = context.getAssets();
         try {
-            ByteBuffer model = loadModelFile(assetManager, "model/model.tflite");
+            ByteBuffer model = loadModelFile(assetManager, "model/SPLIT_8_2_lr_014_model.tflite");
             Interpreter.Options options = new Interpreter.Options();
             options.setRuntime(InterpreterApi.Options.TfLiteRuntime.FROM_SYSTEM_ONLY);
             options.addDelegateFactory(new GpuDelegateFactory());
@@ -138,12 +139,12 @@ public class Model_Helper extends Fragment {
         int width = image.getWidth();
         int cropSize = Math.min(height, width);
         ImageProcessor.Builder imageProcessor = new ImageProcessor.Builder()
-                //.add(new ResizeWithCropOrPadOp(cropSize, cropSize))
-               // .add(new ResizeOp(
-               //         targetHeight,
-                 //     targetWidth,
-                //       ResizeOp.ResizeMethod.BILINEAR
-               //))
+                .add(new ResizeWithCropOrPadOp(cropSize, cropSize))
+               .add(new ResizeOp(
+                       targetHeight,
+                    targetWidth,
+                     ResizeOp.ResizeMethod.BILINEAR
+               ))
                 .add(new NormalizeOp(0f, 255f));
 
         ImageProcessor imageProcessorBuilder = imageProcessor.build();
@@ -163,7 +164,7 @@ public class Model_Helper extends Fragment {
         return oneHotEncoded;
     }
 
-    public void Training(List<TrainingSample> ds_train_m, HashMap<Integer, List<Bitmap>> train_n, String numClass,HashMap<List<Float>, List<TensorImage>> ds_test_n) {
+    public void Training(List<TrainingSample> ds_train_m, HashMap<Integer, List<Bitmap>> train_n, String numClass,HashMap<List<Float>, List<TensorImage>> ds_test_n , HashMap<List<Float>, List<TensorImage>> ds_test_str) {
         int num_Samples = 2;
         int training_steps = 611;
         int NUM_EPOCHS = 1;
@@ -192,6 +193,7 @@ public class Model_Helper extends Fragment {
         // To save results
         List<Object> acc_n = new ArrayList<>();
         List<Object> acc_m = new ArrayList<>();
+        List<Object> acc_str =  new ArrayList<>();
         List<Object> time = new ArrayList<>();
         List<Object> losses = new ArrayList<>();
 
@@ -201,6 +203,7 @@ public class Model_Helper extends Fragment {
             int key = entry.getKey();
             List<TensorImage> copiedValues = new ArrayList<>();
             List<Bitmap> retrievedValues = entry.getValue();
+            Collections.shuffle(retrievedValues);
             for(Bitmap image: retrievedValues){
                 TensorImage img = PreprocessImages(image);
                 copiedValues.add(img);
@@ -219,12 +222,13 @@ public class Model_Helper extends Fragment {
         HashMap<List<Float>, List<TensorImage>> ds_train_n = new HashMap<>();
         ds_train_n = copy_ds_train_n;
 
+        Collections.shuffle(ds_train_m);
+
         for (TrainingSample m_sample : ds_train_m) {
 
 
             List<TensorImage> X_train = new ArrayList<>();
             List<List<Float>> Y_train = new ArrayList<>();
-// TODO  : THIS IF STATEMENT DOES NOT NEED
                 // choose randomly 4 labels from n classes
                 List<List<Float>> n_classes = new ArrayList<>(ds_train_n.keySet());
 
@@ -233,18 +237,13 @@ public class Model_Helper extends Fragment {
                 for (Map.Entry<List<Float>, List<TensorImage>> entry : ds_train_n.entrySet()) {
                     List<Float> key = entry.getKey();
                     List<TensorImage> value = entry.getValue();
+                    Collections.shuffle(value);
                     for (TensorImage img : value) {
                         allEntries.add(new AbstractMap.SimpleEntry<>(img, key));
                     }
                 }
 
-            // Shuffle the list to ensure randomness
-            for (int i = allEntries.size() - 1; i > 0; i--) {
-                int j = random.nextInt(i + 1);
-                Map.Entry<TensorImage, List<Float>> temp = allEntries.get(i);
-                allEntries.set(i, allEntries.get(j));
-                allEntries.set(j, temp);
-            }
+
 
             // Select the first 4 elements from the shuffled list
             List<Map.Entry<TensorImage, List<Float>>> selectedEntries = allEntries.subList(0, Math.min(allEntries.size(), 4));
@@ -262,6 +261,8 @@ public class Model_Helper extends Fragment {
                 ByteBuffer labelBuffer = ByteBuffer.allocateDirect(labelBufferSize).order(ByteOrder.nativeOrder());
 
                 // Add m_sample data
+                X_train.add(m_sample.getImage());
+                Y_train.add(m_sample.getLabel());
                 for (Map.Entry<TensorImage, List<Float>> e : ds_n.entrySet()) {
                     TensorImage x_n = e.getKey();
                     List<Float> y_n = e.getValue();
@@ -269,8 +270,7 @@ public class Model_Helper extends Fragment {
                     X_train.add(x_n);
                     Y_train.add(y_n);
                 }
-                X_train.add(m_sample.getImage());
-                Y_train.add(m_sample.getLabel());
+
 
                 int numImages = X_train.size();
                 System.out.println(numImages);
@@ -314,10 +314,6 @@ public class Model_Helper extends Fragment {
                    // if (i == numImages - 1) losses.add(loss.get(0));
                 }
 
-
-                //inputBuffer.rewind();
-                //labelBuffer.rewind();
-
                 Map<String, Object> inputs = new HashMap<>();
                 inputs.put("x", inputBuffer.rewind());
                 inputs.put("y", labelBuffer.rewind());
@@ -339,12 +335,9 @@ public class Model_Helper extends Fragment {
                 losses.add(loss.get(0));
 
 
-
-
-
                 //TODO: EVALUATION ON ds_test_m AND ds_test_n
                 //         accuracy = number_of_correct_predictions / total_samples
-                Map<String, Object> accuracies = EvaluateModel(ds_test_n, ds_train_m);
+                Map<String, Object> accuracies = EvaluateModel(ds_test_n,ds_test_str, ds_train_m);
                 for (Map.Entry<String, Object> entry : accuracies.entrySet()) {
                     String key = entry.getKey();
                     Object value = entry.getValue();
@@ -352,15 +345,21 @@ public class Model_Helper extends Fragment {
                     // Add to the appropriate list based on the key
                     if (key.equals("accuracy_m")) {
                         acc_m.add(value);
-                    } else if (key.equals("accuracy_n")) {
+                    } else if (key.equals("accuracy_n_subsampled")) {
                         acc_n.add(value);
+                    }else{
+                        acc_str.add(value);
                     }
                 }
 
                 if (abs((float) acc_n.get(acc_n.size() - 1) - (float) acc_m.get(acc_m.size() - 1)) <= 0.02) {
                     System.out.println(
-                            "For Test sets, the accuracies were equal in iteration" + counter + " with total training steps=" + c + ", accuracy=" + acc_m.get(acc_m.size() - 1) + ", and m_samples={}");
+                            "For Subsampled Test sets, the accuracies were equal in iteration" + counter + " with total training steps=" + c + ", accuracy=" + acc_m.get(acc_m.size() - 1) + ", and m_samples={}");
                 }
+            if (abs((float) acc_str.get(acc_str.size() - 1) - (float) acc_m.get(acc_m.size() - 1)) <= 0.02) {
+                System.out.println(
+                        "For Stratified Test sets, the accuracies were equal in iteration" + counter + " with total training steps=" + c + ", accuracy=" + acc_m.get(acc_m.size() - 1) + ", and m_samples={}");
+            }
                 System.out.println(accuracies);
                 c++;
                 System.out.println(
@@ -391,18 +390,13 @@ public class Model_Helper extends Fragment {
                         for (Map.Entry<List<Float>, List<TensorImage>> newentry : ds_train_n.entrySet()) {
                             List<Float> key = newentry.getKey();
                             List<TensorImage> newvalue = newentry.getValue();
+                            Collections.shuffle(newvalue);
                             for (TensorImage img : newvalue) {
                                 newallEntries.add(new AbstractMap.SimpleEntry<>(img, key));
                             }
                         }
 
-                        // Shuffle the list to ensure randomness
-                        for (int i = newallEntries.size() - 1; i > 0; i--) {
-                            int j = random.nextInt(i + 1);
-                            Map.Entry<TensorImage, List<Float>> temp = newallEntries.get(i);
-                            newallEntries.set(i, newallEntries.get(j));
-                            newallEntries.set(j, temp);
-                        }
+
 
                         // Select the first 4 elements from the shuffled list
                         List<Map.Entry<TensorImage, List<Float>>> newselectedEntries = newallEntries.subList(0, Math.min(newallEntries.size(), 4));
@@ -509,7 +503,7 @@ public class Model_Helper extends Fragment {
                         //TODO: EVALUATION ON ds_test_m AND ds_test_n
                         //         accuracy = number_of_correct_predictions / total_samples
 
-                        Map<String, Object> newaccuracies = EvaluateModel(ds_test_n, ds_train_m);
+                        Map<String, Object> newaccuracies = EvaluateModel(ds_test_n,ds_test_str,ds_train_m);
                         for (Map.Entry<String, Object> newentry : newaccuracies.entrySet()) {
                             String key = newentry.getKey();
                             Object value = newentry.getValue();
@@ -517,15 +511,21 @@ public class Model_Helper extends Fragment {
                             // Add to the appropriate list based on the key
                             if (key.equals("accuracy_m")) {
                                 acc_m.add(value);
-                            } else if (key.equals("accuracy_n")) {
+                            } else if (key.equals("accuracy_n_subsampled")) {
                                 acc_n.add(value);
+                            }else{
+                                acc_str.add(value);
                             }
                         }
 
                         System.out.println(newaccuracies);
-                        if (abs((float) acc_n.get(acc_n.size() - 1) - (float) acc_m.get(acc_m.size() - 1)) <= 0.02) {
+                        if (abs((float) acc_n.get(acc_n.size() - 1) - (float) acc_m.get(acc_m.size() - 1)) <= 0.02)  {
                             System.out.println(
-                                    "For Test sets, the accuracies were equal in iteration" + counter + " with total training steps=" + c + ", accuracy=" + acc_m.get(acc_m.size() - 1) + ", and m_samples={}");
+                                    "For Subsampling Test sets, the accuracies were equal in iteration" + counter + " with total training steps=" + c + ", accuracy=" + acc_m.get(acc_m.size() - 1) + ", and m_samples={}");
+                        }
+                        if (abs((float) acc_str.get(acc_str.size() - 1) - (float) acc_m.get(acc_m.size() - 1)) <= 0.02)  {
+                            System.out.println(
+                                    "For Stratified Test sets, the accuracies were equal in iteration" + counter + " with total training steps=" + c + ", accuracy=" + acc_m.get(acc_m.size() - 1) + ", and m_samples={}");
                         }
                         c++;
                         System.out.println(
@@ -539,7 +539,8 @@ public class Model_Helper extends Fragment {
 
 
         }
-        savePrediction(acc_n, "accuracy_n");
+        savePrediction(acc_n, "accuracy_n_subsampled");
+        savePrediction(acc_str, "accuracy_n_stratified");
         savePrediction(acc_m, "accuracy_m");
         savePrediction(time, "time");
         savePrediction(losses, "loss");
@@ -602,7 +603,7 @@ public class Model_Helper extends Fragment {
         }
     }
 
-    private  Map<String, Object> EvaluateModel(HashMap<List<Float>, List<TensorImage>> ds_test_n, List<TrainingSample> X_test_m ){
+    private  Map<String, Object> EvaluateModel(HashMap<List<Float>, List<TensorImage>> ds_test_n,HashMap<List<Float>, List<TensorImage>> ds_test_str, List<TrainingSample> X_test_m ){
         Map<String, Object> result = new HashMap<>();
         int correct_count_n = 0;
         HashMap<TensorImage,List<Float>> new_ds_test_n = new HashMap<>();
@@ -635,7 +636,40 @@ public class Model_Helper extends Fragment {
         }
 
         float accuracy_n = (float) correct_count_n /  shuffled_ds_test_n.size();
-        result.put("accuracy_n",accuracy_n);
+        result.put("accuracy_n_subsampled",accuracy_n);
+
+        int correct_count_n_str = 0;
+        HashMap<TensorImage,List<Float>> new_ds_test_str = new HashMap<>();
+        for(Map.Entry<List<Float>, List<TensorImage>> entry : ds_test_str.entrySet()) {
+            List<Float> y = entry.getKey();
+            List<TensorImage> x = entry.getValue();
+            for (TensorImage x_ : x){
+                new_ds_test_str.put(x_,y);
+            }
+        }
+        // shuffle test dataset on n classes
+
+        List<Map.Entry<TensorImage, List<Float>>> newentryList = new ArrayList<>(new_ds_test_str.entrySet());
+        Collections.shuffle(newentryList);
+        HashMap<TensorImage, List<Float>> newshuffled_ds_test_n = new HashMap<>();
+        for (Map.Entry<TensorImage, List<Float>> entry : newentryList) {
+            newshuffled_ds_test_n.put(entry.getKey(), entry.getValue());
+        }
+
+        for (Map.Entry<TensorImage, List<Float>> e : newshuffled_ds_test_n.entrySet()) {
+            TensorImage x =  e.getKey();
+            List<Float> y_actual_one_hot = e.getValue() ;
+            int y_actual =  Decode(y_actual_one_hot);
+            int y_pred =  Classify(x);
+            if(y_actual == y_pred){
+                correct_count_n_str+=1;
+
+            }
+
+        }
+
+        float accuracy_n_str = (float) correct_count_n_str /  newshuffled_ds_test_n.size();
+        result.put("accuracy_n_str",accuracy_n_str);
 
         int correct_count_m = 0;
         for(int i=0; i<X_test_m.size(); i++){

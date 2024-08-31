@@ -424,14 +424,18 @@ public class CameraFragment extends Fragment {
             @Override
             public void run() {
                 int totalImages = m_ImageUris.size();
+
                 List<TrainingSample> ds_train_m = new ArrayList<>() ;
-                for (int start = 0; start < totalImages; start += 10) {
-                    int end = Math.min(start + 10, totalImages);
-                   ds_train_m.addAll(processBatch(m_ImageUris.subList(start, end)));
-                }
+
+                ds_train_m.addAll(processBatch(m_ImageUris));
+
+
+
+                System.out.println(ds_train_m.size());
                 // collect n classes
                 List<Bitmap> ds_n = new ArrayList<>();
-                List<String> Folder_names = new ArrayList<>(Arrays.asList("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship"));
+                //TODO : I CHANGED SHIP
+                List<String> Folder_names = new ArrayList<>(Arrays.asList("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse"));
                 HashMap<Integer, List<Bitmap>> n_labels_Dictionary = new HashMap<>();
                 int index = 0;
                 for (int j = 0; j < Folder_names.size(); j++) {
@@ -439,7 +443,7 @@ public class CameraFragment extends Fragment {
                     for (int i = 0; i < 20; i++) {
                         AssetManager assetManager = context.getAssets();
                         try {
-                            String filename = Folder_names.get(j) + "/best_images_" + j + "/image_" + i + ".png";
+                            String filename = Folder_names.get(j) + "/worst_images_" + j + "/image_" + i + ".png";
                             InputStream inputStream = assetManager.open(filename);
                             Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
                             bitmaps.add(bitmap);
@@ -458,7 +462,7 @@ public class CameraFragment extends Fragment {
                     for (int i = 0; i < 30; i++) {
                         AssetManager assetManager = context.getAssets();
                         try {
-                            String filename = Folder_names.get(j) + "/ds_test_strartified_" + j + "/image_" + i + ".png";
+                            String filename = Folder_names.get(j) + "/ds_test_subsampled_" + j + "/image_" + i + ".png";
                             InputStream inputStream = assetManager.open(filename);
                             Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
                             bitmaps.add(bitmap);
@@ -469,15 +473,34 @@ public class CameraFragment extends Fragment {
                     n_test_Dictionary.put(j, bitmaps);
 
                 }
+                HashMap<Integer, List<Bitmap>> n_test_Dictionary_2 = new HashMap<>();
+
+                for (int j = 0; j < Folder_names.size(); j++) {
+                    List<Bitmap> bitmaps = new ArrayList<>();
+                    for (int i = 0; i < 30; i++) {
+                        AssetManager assetManager = context.getAssets();
+                        try {
+                            String filename = Folder_names.get(j) + "/ds_test_strartified_" + j + "/image_" + i + ".png";
+                            InputStream inputStream = assetManager.open(filename);
+                            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                            bitmaps.add(bitmap);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    n_test_Dictionary_2.put(j, bitmaps);
+
+                }
                 // preprocess m_data with batch size = 3
 
 
                 System.out.println("ok");
                 // preprocess n_data
                 HashMap<List<Float>, List<TensorImage>> ds_test_n = n_PreprocessSamples(n_test_Dictionary);
+                HashMap<List<Float>, List<TensorImage>> ds_test_str= n_PreprocessSamples(n_test_Dictionary_2);
                 // do training
 
-                modelHelper.Training(ds_train_m,n_labels_Dictionary,className,ds_test_n);
+                modelHelper.Training(ds_train_m,n_labels_Dictionary,className,ds_test_n,ds_test_str);
 
                 getActivity().runOnUiThread(() ->
                         Toast.makeText(getContext(), "All images processed", Toast.LENGTH_SHORT).show()
@@ -491,20 +514,46 @@ public class CameraFragment extends Fragment {
 
     private List<TrainingSample> processBatch(List<Uri> batchUris) {
         List<TrainingImage> training = new ArrayList<>();
-
-        for (Uri imageUri : batchUris) {
-            try {
-                Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContext().getContentResolver(), imageUri);
-                training.add(new TrainingImage(bitmap, className));
-            } catch (IOException e) {
-                e.printStackTrace();
+        if (className.equals("split")){
+            for (int i=0; i< 30; i++) {
+                try {
+                    Uri imageUri = batchUris.get(i);
+                    Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContext().getContentResolver(), imageUri);
+                    training.add(new TrainingImage(bitmap, "8"));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
+            for (int i=30; i< 66; i++) {
+                try {
+                    Uri imageUri = batchUris.get(i);
+                    Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContext().getContentResolver(), imageUri);
+                    training.add(new TrainingImage(bitmap, "9"));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            getActivity().runOnUiThread(() ->
+                    Toast.makeText(getContext(), "Batch processed", Toast.LENGTH_SHORT).show()
+            );
+
+
+        }else {
+            for (Uri imageUri : batchUris) {
+                try {
+                    Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContext().getContentResolver(), imageUri);
+                    training.add(new TrainingImage(bitmap, className));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            getActivity().runOnUiThread(() ->
+                    Toast.makeText(getContext(), "Batch processed", Toast.LENGTH_SHORT).show()
+            );
+
+
         }
-
-        getActivity().runOnUiThread(() ->
-                Toast.makeText(getContext(), "Batch processed", Toast.LENGTH_SHORT).show()
-        );
-
         return m_PreprocessSamples(training);
     }
 
@@ -513,7 +562,8 @@ public class CameraFragment extends Fragment {
     private void  Cifar10_Training(){
             // collect n classes
             List<Bitmap> ds_n = new ArrayList<>();
-            List<String> Folder_names = new ArrayList<>(Arrays.asList("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship"));
+            //TODO : I CAHNGES SHIP
+            List<String> Folder_names = new ArrayList<>(Arrays.asList("airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse"));
             HashMap<Integer, List<Bitmap>> n_labels_Dictionary = new HashMap<>();
             int index = 0;
             for (int j = 0; j < Folder_names.size(); j++) {
@@ -521,7 +571,7 @@ public class CameraFragment extends Fragment {
                 for (int i = 0; i < 20; i++) {
                     AssetManager assetManager = context.getAssets();
                     try {
-                        String filename = Folder_names.get(j) + "/best_images_" + j + "/image_" + i + ".png";
+                        String filename = Folder_names.get(j) + "/worst_images_" + j + "/image_" + i + ".png";
                         InputStream inputStream = assetManager.open(filename);
                         Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
                         bitmaps.add(bitmap);
@@ -533,20 +583,49 @@ public class CameraFragment extends Fragment {
 
             }
             // collect m classes
-            for (int i = 0; i < 125; i++) {
+            for (int i = 0; i < 22; i++) {
                 AssetManager assetManager = context.getAssets();
                 try {
-                    String filename = "truck" + "/ds_train_m" + "/image_" + i + ".png";
+                    String filename = "secondtraining_imgNet" + "/image_" + i + ".png";
                     InputStream inputStream = assetManager.open(filename);
                     Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                    m_TrainingImages.add(new TrainingImage(bitmap, className));
+                    m_TrainingImages.add(new TrainingImage(bitmap, "8"));
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
-
+        for (int i = 0; i < 28; i++) {
+            AssetManager assetManager = context.getAssets();
+            try {
+                String filename = "ds_train_m_imagenet"+ "/m_samples_imagenet" + "/image_" + i + ".png";
+                InputStream inputStream = assetManager.open(filename);
+                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                m_TrainingImages.add(new TrainingImage(bitmap, "9"));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
             // collect test data for n classes
         HashMap<Integer, List<Bitmap>> n_test_Dictionary = new HashMap<>();
+
+        for (int j = 0; j < Folder_names.size(); j++) {
+            List<Bitmap> bitmaps = new ArrayList<>();
+            for (int i = 0; i < 30; i++) {
+                AssetManager assetManager = context.getAssets();
+                try {
+                    String filename = Folder_names.get(j) + "/ds_test_subsampled_" + j + "/image_" + i + ".png";
+                    InputStream inputStream = assetManager.open(filename);
+                    Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                    bitmaps.add(bitmap);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            n_test_Dictionary.put(j, bitmaps);
+
+        }
+
+        HashMap<Integer, List<Bitmap>> n_test_Dictionary_2 = new HashMap<>();
 
         for (int j = 0; j < Folder_names.size(); j++) {
             List<Bitmap> bitmaps = new ArrayList<>();
@@ -561,16 +640,17 @@ public class CameraFragment extends Fragment {
                     e.printStackTrace();
                 }
             }
-            n_test_Dictionary.put(j, bitmaps);
+            n_test_Dictionary_2.put(j, bitmaps);
 
         }
 
             // Preprocess  Samples
             HashMap<List<Float>, List<TensorImage>> ds_test_n = n_PreprocessSamples(n_test_Dictionary);
+        HashMap<List<Float>, List<TensorImage>> ds_test_str= n_PreprocessSamples(n_test_Dictionary_2);
             List<TrainingSample> ds_train_m = m_PreprocessSamples(m_TrainingImages);
             // do training
-
-            modelHelper.Training(ds_train_m,n_labels_Dictionary,className,ds_test_n);
+            System.out.println(ds_train_m.size());
+            modelHelper.Training(ds_train_m,n_labels_Dictionary,className,ds_test_n,ds_test_str);
 
 
         index++;
@@ -578,14 +658,22 @@ public class CameraFragment extends Fragment {
     }
     // Prepare samples for On Device Training
     private List<TrainingSample> m_PreprocessSamples(List<TrainingImage> TrainingImages ){
+
             for (TrainingImage trainingImage : TrainingImages) {
+                if(trainingImage.getClassName().equals("8")){
+                    Bitmap bitmap = trainingImage.getBitmap();
+                    List<Float> label = modelHelper.encoding(8, 10);
+                    TensorImage image = modelHelper.PreprocessImages(bitmap);
 
-                Bitmap bitmap = trainingImage.getBitmap();
-                List<Float> label = modelHelper.encoding(9, 10);
-                TensorImage image = modelHelper.PreprocessImages(bitmap);
+                    TrainingSamples.add(new TrainingSample(image, label));
+                }else{
 
-                TrainingSamples.add(new TrainingSample(image, label));
+                    Bitmap bitmap = trainingImage.getBitmap();
+                    List<Float> label = modelHelper.encoding(9, 10);
+                    TensorImage image = modelHelper.PreprocessImages(bitmap);
 
+                    TrainingSamples.add(new TrainingSample(image, label));
+                }
             }
             return TrainingSamples;
 
