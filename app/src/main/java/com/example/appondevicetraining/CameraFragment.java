@@ -453,7 +453,7 @@ public class CameraFragment extends Fragment {
                     }
                     n_labels_Dictionary.put(j, bitmaps);
 
-                }
+                } //
                 // collect test data for n classes
                 HashMap<Integer, List<Bitmap>> n_test_Dictionary = new HashMap<>();
 

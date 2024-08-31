@@ -95,7 +95,7 @@ public class Model_Helper extends Fragment {
             interpreter = new Interpreter(model, options);
             interpreter.allocateTensors();
             return true;
-
+//
         } catch (IOException e) {
             Log.e("Model", "TFLite failed to load model with error: " + e.getMessage());
             return false;
