@@ -1,6 +1,6 @@
 # On-Device Training Mobile App
 
-This Android application demonstrates how **deep neural networks** can be trained, deployed, and fine-tuned directly **on mobile devices** for the task of **image classification**.
+This Android application demonstrates how **deep neural networks** can be trained **on mobile devices** for the task of **image classification**.
 
 The app was developed as part of my **diploma thesis** at the National Technical University of Athens (NTUA), focusing on the feasibility, performance, and limitations of on-device training compared to conventional server-based training methods. The full thesis is available [here](https://dspace.lib.ntua.gr/xmlui/bitstream/handle/123456789/61628/pervolrakis_dimitrios_DT.pdf?sequence=1&isAllowed=y).
 
