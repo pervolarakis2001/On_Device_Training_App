@@ -32,8 +32,7 @@ The primary objective of this application is to study the process of continuous 
 - **Android SDK** (Java/Kotlin)
 - **TensorFlow Lite** or **PyTorch Mobile**
 - **CameraX / Camera2** for real-time image capture
-- **On-device training APIs** (e.g., TFLite Model Personalization)
-- Optional: **OpenCV** for image preprocessing
+- **TFLite Model Personalization**
 
 ---
 
